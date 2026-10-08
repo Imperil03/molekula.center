@@ -1,0 +1,181 @@
+(() => {
+  'use strict';
+  const M = window.ReportModel, data = window.REPORT_DATA;
+  const $ = id => document.getElementById(id);
+  if (!M || !data) { $('panel-results').textContent = 'Не удалось загрузить отчёт. Обновите страницу.'; return; }
+  const esc = value => String(value ?? '').replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+  const paragraphsHTML = value => String(value ?? '').split(/\r?\n\s*\r?\n/).filter(p => p.trim()).map(p => `<p>${esc(p)}</p>`).join('');
+  const number = value => new Intl.NumberFormat('ru-RU',{maximumFractionDigits:1}).format(value);
+  const dateLabel = value => value ? new Intl.DateTimeFormat('ru-RU',{day:'2-digit',month:'2-digit',year:'numeric'}).format(new Date(value + 'T12:00:00Z')) : '';
+  const icon = (name, cls = '') => `<svg class="${cls}" aria-hidden="true" viewBox="0 0 24 24">${{
+    arrow:'<path d="M5 12h14m-5-5 5 5-5 5"/>', chevron:'<path d="m9 5 7 7-7 7"/>',
+    external:'<path d="M7 17 17 7M7 7h10v10"/>', work:'<rect x="5" y="5" width="14" height="16" rx="2"/><path d="M9 5V3h6v2m-6 6h6m-6 5h6"/>',
+    chart:'<path d="M4 3v17h17M9 15v-4m5 4V6m5 9V9"/>', up:'<path d="M12 20V4m-6 6 6-6 6 6"/>', down:'<path d="M12 4v16m-6-6 6 6 6-6"/>'
+  }[name] || ''}</svg>`;
+  const tabs = ['results','works'], months = M.months(data), dialog = $('detail-dialog');
+  const state = {month:M.defaultMonth(data),tab:'results',detail:null,filters:{search:'',direction:'',trend:'all'},limit:25,engine:'yandex'};
+  let view = null, report = null, renderedMonth = null, currentDetail = null, lastOpener = null;
+  const linkHTML = item => M.safeHref(item.url) ? `<a href="${esc(M.safeHref(item.url))}" target="_blank" rel="noopener noreferrer">${esc(item.label || item.url)}${icon('external')}</a>` : esc(item.label || 'Ссылка недоступна');
+  function readRoute() {
+    const url = new URL(location.href), month = url.searchParams.get('month'), tab = url.hash.slice(1);
+    return {month:months.includes(month) ? month : M.defaultMonth(data), tab:tabs.includes(tab) ? tab : 'results', detail:url.searchParams.get('work')};
+  }
+  function routeURL() {
+    const url = new URL(location.href);
+    url.searchParams.set('month',state.month); url.searchParams.delete('task');
+    if (state.detail) url.searchParams.set('work',state.detail); else url.searchParams.delete('work');
+    url.hash = state.tab; return url;
+  }
+  function navigate(changes, {replace = false, focusTab = false} = {}) {
+    if (changes.month && changes.month !== state.month) { state.filters = {search:'',direction:'',trend:'all'}; state.limit = 25; }
+    Object.assign(state, changes);
+    if (state.detail && (state.tab !== 'works' || !M.getReport(data,state.month)?.works.some(w => w.id === state.detail))) state.detail = null;
+    try { history[replace ? 'replaceState' : 'pushState'](null,'',routeURL()); } catch (_) {}
+    render(); if (focusTab) $('tab-' + state.tab).focus({preventScroll:true});
+  }
+  function pendingHTML(kind) {
+    const heading = kind === 'works' ? 'Работы за этот месяц ещё не добавлены' : 'Позиции за этот месяц ещё не добавлены';
+    const text = kind === 'works' ? 'Будем добавлять выполненные работы по мере готовности. Итоги месяца появятся после его завершения.' : 'Здесь появятся сохранённые замеры Яндекса и Google с фактическими датами проверки.';
+    return `<div class="empty-state surface"><div class="empty-symbol">${icon(kind === 'works' ? 'work' : 'chart')}</div><div><h2>${heading}</h2><p>${text}</p></div></div>`;
+  }
+  function kpiHTML(engine, top) {
+    if (report.archive) {
+      const metric = report.archive.kpis[engine]['top' + top];
+      const before = metric.before.replace(/^Было:\s*/i,'').trim(), after = metric.after.replace(/^Стало:\s*/i,'').trim();
+      return `<div class="engine-kpi-metric"><h4>Топ-${top}</h4><div class="kpi-values"><div><span class="kpi-period">Было</span><span class="number before">${esc(before)}</span></div>${icon('arrow','kpi-arrow')}<div><span class="kpi-period">Стало</span><span class="number neutral">${esc(after)}</span></div></div><p class="kpi-count archive-change">${esc(metric.change)}</p></div>`;
+    }
+    const stats = view?.stats[engine], metric = stats?.['top' + top];
+    if (!stats?.total) return `<div class="engine-kpi-metric"><h4>Топ-${top}</h4><p class="no-metric">Нет данных</p></div>`;
+    const after = metric.after / stats.total * 100, before = metric.before === null ? null : metric.before / stats.total * 100;
+    const trend = before === null || after === before ? 'neutral' : after > before ? 'positive' : 'negative';
+    return `<div class="engine-kpi-metric"><h4>Топ-${top}</h4><div class="kpi-values">${before === null ? '' : `<div><span class="kpi-period">Было</span><span class="number before">${number(metric.before)}</span></div>${icon('arrow','kpi-arrow')}`}<div>${before === null ? '' : '<span class="kpi-period">Стало</span>'}<span class="number ${trend}">${number(metric.after)}</span></div></div><p class="kpi-count">из ${number(stats.total)} запросов · ${number(after)}%</p></div>`;
+  }
+  function engineKpisHTML() {
+    return `<div class="engine-kpi-grid">${M.ENGINES.map(engine => `<section class="engine-kpi-card surface engine-${engine}" aria-labelledby="kpi-heading-${engine}"><h3 class="searcher-name" id="kpi-heading-${engine}">${engine === 'yandex' ? 'Яндекс' : 'Google'}</h3><div class="engine-kpi-metrics">${[10,3].map(top => kpiHTML(engine,top)).join('')}</div></section>`).join('')}</div>`;
+  }
+  function rankCharts() {
+    const archive = report.archive;
+    if (!archive && !view) return '';
+    const percent = text => Number.parseFloat(text.replace(/^.*?:\s*/,'').replace(',','.'));
+    const stats = archive ? Object.fromEntries(M.ENGINES.map(engine => [engine, Object.fromEntries([3,10].map(top => ['top' + top, {
+      before:percent(archive.kpis[engine]['top' + top].before), after:percent(archive.kpis[engine]['top' + top].after)
+    }]))])) : view.stats;
+    const max = Math.max(1, ...Object.values(stats).flatMap(s => [s.top3.before,s.top3.after,s.top10.before,s.top10.after].filter(Number.isFinite)));
+    return `<div class="charts-grid">${M.ENGINES.map(engine => {
+      const s = stats[engine], comparable = archive || s.comparable;
+      if (!archive && !s.total) return '';
+      const bars = [3,10].map(top => `<div class="rank-bar-group">${['before','after'].map(side => {
+        const value = s['top' + top][side];
+        return Number.isFinite(value) ? `<div class="rank-bar ${side}" style="height:${value / max * 104}px"><span>${number(value)}${archive ? '%' : ''}</span></div>` : '';
+      }).join('')}<strong>Топ-${top}</strong></div>`).join('');
+      const name = engine === 'yandex' ? 'Яндекс' : 'Google';
+      return `<section class="ranking-chart surface" aria-label="${name}: ${archive ? 'доли запросов по архивной сводке' : 'количество запросов'}"><h3>${name}</h3>${archive ? '<p class="archive-chart-note">Доли запросов по сводке архивного отчёта</p>' : ''}<div class="rank-bars">${bars}</div><div class="chart-legend">${comparable ? `<span><i class="before-key"></i>Было${archive ? '' : ' · ' + dateLabel(view.before.date)}</span>` : ''}<span><i></i>${comparable ? 'Стало' : 'Сейчас'}${archive ? '' : ' · ' + dateLabel(view.after.date)}</span></div></section>`;
+    }).join('')}</div>`;
+  }
+  function trafficHTML() {
+    if (!report.traffic) return '';
+    return `<section class="traffic-card surface"><div><h3>Поисковый трафик</h3><p class="traffic-value">${number(report.traffic.visits)}<span>визитов</span></p><p class="source-label">${esc(report.traffic.sourceLabel || '')}</p>${report.traffic.note ? `<p class="traffic-context">${esc(report.traffic.note)}</p>` : ''}</div></section>`;
+  }
+  function rankCell(value) {
+    if (value === undefined) return '<span class="neutral">Нет замера</span>';
+    if (value === null) return '<span class="neutral" title="Не найден в результатах проверки">—<span class="sr-only">Не найден в результатах проверки</span></span>';
+    return number(value);
+  }
+  function deltaHTML(change) {
+    const labels = {appeared:'Появился',lost:'За пределами',same:'Без изменений',no_data:'Не сравниваем',new:'Новый запрос'};
+    if (['up','down'].includes(change.kind)) return `<span class="delta ${change.kind === 'up' ? 'positive' : 'negative'}" aria-label="${change.kind === 'up' ? 'Рост' : 'Снижение'} на ${change.amount}">${icon(change.kind)}${number(change.amount)}</span>`;
+    return `<span class="delta ${change.kind === 'appeared' ? 'positive' : change.kind === 'lost' ? 'negative' : 'neutral'}">${labels[change.kind]}</span>`;
+  }
+  function queryTableHTML() {
+    if (!report.archive && !view) return '';
+    const archive = report.archive, rows = archive ? archive.rows : view.rows;
+    const directions = [...new Set(rows.map(r => r.direction).filter(Boolean))].sort((a,b) => a.localeCompare(b,'ru'));
+    const counts = Object.fromEntries(M.ENGINES.map(e => [e, archive ? archive.dates[e].length : view.before ? 3 : 1]));
+    const heading = engine => archive ? archive.dates[engine].map(d => `<th scope="col" class="engine-${engine} archive-date"><time datetime="${d.date}">${esc(d.label)}</time></th>`).join('') :
+      `${view.before ? `<th scope="col" class="engine-${engine}">Было<time datetime="${view.before.date}">${dateLabel(view.before.date)}</time></th>` : ''}<th scope="col" class="engine-${engine}">${view.before ? 'Стало' : 'Позиция'}<time datetime="${view.after.date}">${dateLabel(view.after.date)}</time></th>${view.before ? `<th scope="col" class="engine-${engine}">Изменение</th>` : ''}`;
+    const columns = M.ENGINES.map(engine => archive ? archive.dates[engine].map(() => `<col class="rank-col engine-${engine}">`).join('') :
+      `${view.before ? `<col class="rank-col engine-${engine}">` : ''}<col class="rank-col engine-${engine}">${view.before ? `<col class="change-col engine-${engine}">` : ''}`).join('');
+    const method = archive ? 'Архив из Google Таблицы. Значения и подписи дат сохранены без пересчёта; прочерк обозначает пустую исходную ячейку.' : '«—» — сайт не найден в результатах проверки. «Нет замера» — измерение отсутствует. Новые запросы не включаем в сравнение с прошлым замером.';
+    return `<section class="queries-card surface"><div class="section-heading"><h2>Позиции запросов</h2><p>${archive ? 'Данные архивного отчёта' : 'Данные Топвизора'}</p></div><div class="table-filters"><div class="filter-field search"><label for="query-search">Найти запрос</label><input id="query-search" type="search" placeholder="Например, косметология Сургут" value="${esc(state.filters.search)}"></div><div class="filter-field"><label for="direction-filter">Направление</label><div class="select-wrap"><select id="direction-filter"><option value="">Все направления</option>${directions.map(d => `<option value="${esc(d)}">${esc(d)}</option>`).join('')}</select>${icon('chevron')}</div></div>${!archive && view.before ? `<div class="filter-field"><label for="trend-filter">Динамика в любом поисковике</label><div class="select-wrap"><select id="trend-filter">${[['all','Все изменения'],['up','Рост'],['down','Снижение'],['same','Без изменений'],['new','Новые запросы']].map(([v,label]) => `<option value="${v}">${label}</option>`).join('')}</select>${icon('chevron')}</div></div>` : ''}</div><div class="mobile-engine" role="group" aria-label="Поисковик в таблице"><button type="button" data-engine="yandex" aria-pressed="${state.engine === 'yandex'}">Яндекс</button><button type="button" data-engine="google" aria-pressed="${state.engine === 'google'}">Google</button></div><p class="table-scroll-hint">Таблицу можно листать вправо, чтобы увидеть все показатели.</p><div class="table-scroll" id="positions-wrap" data-engine="${state.engine}" role="region" tabindex="0" aria-label="Позиции запросов"><table class="positions-table ${archive ? 'archive-positions' : !view.before ? 'initial-positions' : ''}" style="--rank-columns:${counts.yandex + counts.google};--yandex-columns:${counts.yandex};--google-columns:${counts.google}"><caption class="sr-only">Позиции запросов за ${esc(M.monthLabel(state.month).toLowerCase())}</caption><colgroup><col class="query-col">${columns}</colgroup><thead><tr><th rowspan="2" scope="col" class="query-heading">Запрос</th><th colspan="${counts.yandex}" scope="colgroup" class="engine-yandex engine-title">Яндекс</th><th colspan="${counts.google}" scope="colgroup" class="engine-google engine-title">Google</th></tr><tr>${M.ENGINES.map(heading).join('')}</tr></thead><tbody id="query-rows"></tbody></table></div><p id="query-empty" class="query-empty" hidden>Запросы не найдены. Измените поиск или фильтры.</p><div class="table-footer"><span id="query-count" role="status" aria-live="polite"></span><button type="button" class="button-secondary" id="show-more">Показать ещё 25</button></div><p class="table-method">${method}</p></section>`;
+  }
+  function renderQueries() {
+    if (!$('query-rows')) return;
+    const archive = report.archive, allRows = archive ? archive.rows : view.rows;
+    const filtered = M.filterRows(allRows,state.filters), visible = filtered.slice(0,state.limit);
+    $('query-rows').innerHTML = visible.map(row => `<tr><td>${esc(row.query)}${row.direction ? `<span class="query-direction">${esc(row.direction)}</span>` : ''}</td>${M.ENGINES.map(engine => archive ? row[engine].map((v,i) => `<td class="engine-${engine} ${i === row[engine].length - 1 ? 'current' : ''}">${v === null || v === '' ? '<span class="neutral" title="Пустая ячейка в архиве">—</span>' : esc(v)}</td>`).join('') : `${view.before ? `<td class="engine-${engine}">${rankCell(row[engine].before)}</td>` : ''}<td class="engine-${engine} current">${rankCell(row[engine].after)}</td>${view.before ? `<td class="engine-${engine}">${deltaHTML(row[engine].change)}</td>` : ''}`).join('')}</tr>`).join('');
+    $('positions-wrap').hidden = filtered.length === 0; $('query-empty').hidden = filtered.length !== 0;
+    $('query-count').textContent = `Показано: ${visible.length} из ${filtered.length}`; $('show-more').hidden = state.limit >= filtered.length;
+  }
+  function resultsHTML() {
+    view = M.rankingsView(report.rankings);
+    let intro = report.intro.map(paragraphsHTML).join('');
+    if (report.conclusions.length) intro += '<p class="archive-conclusion-title">Выводы</p>' + report.conclusions.map(paragraphsHTML).join('');
+    const stateNote = report.archive ? 'Источник: Google Таблица. Архив перенесён без пересчёта.' : view ? `${report.status === 'in_progress' ? 'Промежуточные данные. Итоговый отчёт будет подготовлен в конце месяца. ' : ''}Замеры Топвизора: ${view.before ? dateLabel(view.before.date) + ' — ' : ''}${dateLabel(view.after.date)}. ${esc(view.after.region)}, смартфоны.` : '';
+    const note = view?.before && !view.metaMatch ? '<p class="metrics-note">Настройки замеров различаются. Динамику не сравниваем.</p>' : '';
+    return `<div class="results-heading"><h2>Результаты за ${M.monthLabel(state.month).toLowerCase()}</h2>${intro}${stateNote ? `<p class="report-state">${stateNote}</p>` : ''}</div>${report.archive || view ? engineKpisHTML() + note + rankCharts() + trafficHTML() + queryTableHTML() : trafficHTML() + pendingHTML('results')}`;
+  }
+  function worksHTML() {
+    if (!report.works.length) return pendingHTML('works');
+    return `<div class="works-heading"><h2>Работы за ${M.monthLabel(state.month).toLowerCase()}</h2><p>Что изменили, зачем и где посмотреть результат.</p></div><section class="surface"><table class="works-table"><thead><tr><th scope="col">Что сделали</th><th scope="col">Краткое описание</th><th scope="col">Для чего это нужно</th><th scope="col">Подробнее</th></tr></thead><tbody>${report.works.map(work => `<tr><td><h3 class="work-name">${esc(work.title)}</h3></td><td class="work-summary">${esc(work.summary)}</td><td data-label="Для чего это нужно">${work.why ? paragraphsHTML(work.why) : '—'}</td><td><button type="button" class="work-open" data-work="${esc(work.id)}" aria-label="Подробнее: ${esc(work.title)}">Подробнее${icon('arrow')}</button></td></tr>`).join('')}</tbody></table></section>`;
+  }
+  function evidenceHTML(item) {
+    if (item.type === 'link') return `<p class="detail-resource">${linkHTML(item)}</p>`;
+    let body = '';
+    if (item.type === 'comparison') body = `<div class="comparison-grid"><div><h4>Было</h4><p>${esc(item.before)}</p></div><div><h4>Стало</h4><p>${esc(item.after)}</p></div></div>`;
+    if (item.type === 'table') body = `<div class="table-scroll" role="region" aria-label="${esc(item.label)}" tabindex="0"><table class="evidence-table"><thead><tr>${item.columns.map(c => `<th scope="col">${esc(c)}</th>`).join('')}</tr></thead><tbody>${item.rows.map(row => `<tr>${item.columns.map((_,i) => `<td>${esc(row[i])}</td>`).join('')}</tr>`).join('')}</tbody></table></div>`;
+    return `<details class="evidence-block"><summary>${esc(item.label)}</summary><div class="evidence-content">${body}</div></details>`;
+  }
+  function renderDetail() {
+    const work = state.tab === 'works' && report.works.find(w => w.id === state.detail);
+    const key = work ? `${state.month}:${work.id}` : null;
+    if (!work) {
+      if (dialog.open) { dialog.close(); document.body.classList.remove('dialog-open'); (lastOpener?.isConnected ? lastOpener : $('tab-' + state.tab)).focus({preventScroll:true}); }
+      currentDetail = null; return;
+    }
+    if (key === currentDetail && dialog.open) return;
+    dialog.dataset.reportView = 'works'; $('detail-title').textContent = work.title; $('detail-meta').hidden = true;
+    const sections = (work.sections || []).map(section => `<section class="detail-section"><h3>${esc(section.title)}</h3>${paragraphsHTML(section.text)}${section.bullets?.length ? `<ul>${section.bullets.map(b => `<li>${esc(b)}</li>`).join('')}</ul>` : ''}${section.links?.length ? `<ul class="detail-links">${section.links.map(l => `<li>${linkHTML(l)}</li>`).join('')}</ul>` : ''}</section>`).join('');
+    $('detail-body').innerHTML = `<section class="actual-result"><h3>Что сделали</h3>${paragraphsHTML(work.result)}${work.resultBullets?.length ? `<ul class="result-bullets">${work.resultBullets.map(b => `<li>${esc(b)}</li>`).join('')}</ul>` : ''}${sections}${(work.evidence || []).map(evidenceHTML).join('')}</section>`;
+    if (!dialog.open) { dialog.showModal(); document.body.classList.add('dialog-open'); }
+    $('detail-body').scrollTop = 0; $('close-detail').focus({preventScroll:true}); currentDetail = key;
+  }
+  function render() {
+    report = M.getReport(data,state.month); $('report-month').value = state.month;
+    if (renderedMonth !== state.month) { $('panel-results').innerHTML = resultsHTML(); $('panel-works').innerHTML = worksHTML(); renderedMonth = state.month; }
+    for (const tab of tabs) { $('tab-' + tab).setAttribute('aria-selected',String(state.tab === tab)); $('tab-' + tab).tabIndex = state.tab === tab ? 0 : -1; $('panel-' + tab).hidden = state.tab !== tab; }
+    $('work-count').hidden = !report.works.length; $('work-count').textContent = report.works.length;
+    document.title = `Отчёт по продвижению сайта «${data.project.name}» — ${M.monthLabel(state.month)}`;
+    renderQueries(); renderDetail();
+  }
+  $('report-client').textContent = `«${data.project.name}»`;
+  $('site-link').href = M.safeHref(data.project.website); $('site-link').innerHTML = esc(new URL(data.project.website).hostname) + icon('external');
+  $('period-label').textContent = `${M.monthLabel(months[0])} — ${M.monthLabel(months.at(-1)).toLowerCase()}`;
+  $('report-month').innerHTML = months.map(month => `<option value="${month}">${M.monthLabel(month)}</option>`).join('');
+  $('report-month').addEventListener('change',event => { navigate({month:event.target.value,detail:null}); $('announcement').textContent = `Выбран ${M.monthLabel(state.month)}.`; });
+  tabs.forEach((tab,index) => {
+    $('tab-' + tab).addEventListener('click',() => navigate({tab,detail:null}));
+    $('tab-' + tab).addEventListener('keydown',event => {
+      if (event.ctrlKey || event.metaKey || event.altKey || !['ArrowLeft','ArrowRight','Home','End'].includes(event.key)) return;
+      event.preventDefault(); const next = event.key === 'Home' ? 0 : event.key === 'End' ? tabs.length - 1 : (index + (event.key === 'ArrowRight' ? 1 : -1) + tabs.length) % tabs.length;
+      navigate({tab:tabs[next],detail:null},{focusTab:true});
+    });
+  });
+  document.addEventListener('click',event => {
+    const work = event.target.closest('[data-work]'); if (work) { lastOpener = work; navigate({detail:work.dataset.work}); return; }
+    const engine = event.target.closest('button[data-engine]');
+    if (engine) { state.engine = engine.dataset.engine; $('positions-wrap').dataset.engine = state.engine; document.querySelectorAll('button[data-engine]').forEach(b => b.setAttribute('aria-pressed',String(b.dataset.engine === state.engine))); return; }
+    if (event.target.closest('#show-more')) { state.limit += 25; renderQueries(); }
+  });
+  document.addEventListener('input',event => { if (event.target.id === 'query-search') { state.filters.search = event.target.value; state.limit = 25; renderQueries(); } });
+  document.addEventListener('change',event => {
+    if (event.target.id === 'direction-filter') state.filters.direction = event.target.value;
+    else if (event.target.id === 'trend-filter') state.filters.trend = event.target.value; else return;
+    state.limit = 25; renderQueries();
+  });
+  $('close-detail').addEventListener('click',() => navigate({detail:null}));
+  dialog.addEventListener('cancel',event => { event.preventDefault(); navigate({detail:null}); });
+  dialog.addEventListener('click',event => { if (event.target === dialog) { const r = dialog.getBoundingClientRect(); if (event.clientX < r.left || event.clientX > r.right || event.clientY < r.top || event.clientY > r.bottom) navigate({detail:null}); } });
+  function restoreRoute() { navigate(readRoute(),{replace:true}); }
+  window.addEventListener('popstate',restoreRoute); window.addEventListener('hashchange',restoreRoute);
+  navigate(readRoute(),{replace:true});
+})();
