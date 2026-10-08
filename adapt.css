@@ -7,4 +7,8 @@
 .archive-chart-note{font-size:var(--meta-size);color:var(--muted);margin-top:10px}
 .table-scroll[data-engine=yandex] .archive-positions{--visible-rank-columns:var(--yandex-columns)}
 .table-scroll[data-engine=google] .archive-positions{--visible-rank-columns:var(--google-columns)}
+.works-table.without-details th:first-child{width:27%}
+.works-table.without-details th:nth-child(2){width:38%}
+.works-table.without-details th:last-child{width:35%}
+@media(max-width:1100px){.works-table.without-details td:first-child{grid-column:1/-1}}
 @media(max-width:600px){.archive-positions .rank-col{width:calc(60% / var(--visible-rank-columns))}}

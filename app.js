@@ -13,6 +13,7 @@
     chart:'<path d="M4 3v17h17M9 15v-4m5 4V6m5 9V9"/>', up:'<path d="M12 20V4m-6 6 6-6 6 6"/>', down:'<path d="M12 4v16m-6-6 6 6 6-6"/>'
   }[name] || ''}</svg>`;
   const tabs = ['results','works'], months = M.months(data), dialog = $('detail-dialog');
+  const hasWorkDetails = month => month >= '2026-10';
   const state = {month:M.defaultMonth(data),tab:'results',detail:null,filters:{search:'',direction:'',trend:'all'},limit:25,engine:'yandex'};
   let view = null, report = null, renderedMonth = null, currentDetail = null, lastOpener = null;
   const linkHTML = item => M.safeHref(item.url) ? `<a href="${esc(M.safeHref(item.url))}" target="_blank" rel="noopener noreferrer">${esc(item.label || item.url)}${icon('external')}</a>` : esc(item.label || 'Ссылка недоступна');
@@ -29,7 +30,7 @@
   function navigate(changes, {replace = false, focusTab = false} = {}) {
     if (changes.month && changes.month !== state.month) { state.filters = {search:'',direction:'',trend:'all'}; state.limit = 25; }
     Object.assign(state, changes);
-    if (state.detail && (state.tab !== 'works' || !M.getReport(data,state.month)?.works.some(w => w.id === state.detail))) state.detail = null;
+    if (state.detail && (state.tab !== 'works' || !hasWorkDetails(state.month) || !M.getReport(data,state.month)?.works.some(w => w.id === state.detail))) state.detail = null;
     try { history[replace ? 'replaceState' : 'pushState'](null,'',routeURL()); } catch (_) {}
     render(); if (focusTab) $('tab-' + state.tab).focus({preventScroll:true});
   }
@@ -95,7 +96,7 @@
       `${view.before ? `<th scope="col" class="engine-${engine}">Было<time datetime="${view.before.date}">${dateLabel(view.before.date)}</time></th>` : ''}<th scope="col" class="engine-${engine}">${view.before ? 'Стало' : 'Позиция'}<time datetime="${view.after.date}">${dateLabel(view.after.date)}</time></th>${view.before ? `<th scope="col" class="engine-${engine}">Изменение</th>` : ''}`;
     const columns = M.ENGINES.map(engine => archive ? archive.dates[engine].map(() => `<col class="rank-col engine-${engine}">`).join('') :
       `${view.before ? `<col class="rank-col engine-${engine}">` : ''}<col class="rank-col engine-${engine}">${view.before ? `<col class="change-col engine-${engine}">` : ''}`).join('');
-    const method = archive ? 'Архив из Google Таблицы. Значения и подписи дат сохранены без пересчёта; прочерк обозначает пустую исходную ячейку.' : '«—» — сайт не найден в результатах проверки. «Нет замера» — измерение отсутствует. Новые запросы не включаем в сравнение с прошлым замером.';
+    const method = archive ? '«—» — нет данных за эту дату.' : '«—» — сайт не найден в результатах проверки. «Нет замера» — измерение отсутствует. Новые запросы не включаем в сравнение с прошлым замером.';
     return `<section class="queries-card surface"><div class="section-heading"><h2>Позиции запросов</h2><p>${archive ? 'Данные архивного отчёта' : 'Данные Топвизора'}</p></div><div class="table-filters"><div class="filter-field search"><label for="query-search">Найти запрос</label><input id="query-search" type="search" placeholder="Например, косметология Сургут" value="${esc(state.filters.search)}"></div><div class="filter-field"><label for="direction-filter">Направление</label><div class="select-wrap"><select id="direction-filter"><option value="">Все направления</option>${directions.map(d => `<option value="${esc(d)}">${esc(d)}</option>`).join('')}</select>${icon('chevron')}</div></div>${!archive && view.before ? `<div class="filter-field"><label for="trend-filter">Динамика в любом поисковике</label><div class="select-wrap"><select id="trend-filter">${[['all','Все изменения'],['up','Рост'],['down','Снижение'],['same','Без изменений'],['new','Новые запросы']].map(([v,label]) => `<option value="${v}">${label}</option>`).join('')}</select>${icon('chevron')}</div></div>` : ''}</div><div class="mobile-engine" role="group" aria-label="Поисковик в таблице"><button type="button" data-engine="yandex" aria-pressed="${state.engine === 'yandex'}">Яндекс</button><button type="button" data-engine="google" aria-pressed="${state.engine === 'google'}">Google</button></div><p class="table-scroll-hint">Таблицу можно листать вправо, чтобы увидеть все показатели.</p><div class="table-scroll" id="positions-wrap" data-engine="${state.engine}" role="region" tabindex="0" aria-label="Позиции запросов"><table class="positions-table ${archive ? 'archive-positions' : !view.before ? 'initial-positions' : ''}" style="--rank-columns:${counts.yandex + counts.google};--yandex-columns:${counts.yandex};--google-columns:${counts.google}"><caption class="sr-only">Позиции запросов за ${esc(M.monthLabel(state.month).toLowerCase())}</caption><colgroup><col class="query-col">${columns}</colgroup><thead><tr><th rowspan="2" scope="col" class="query-heading">Запрос</th><th colspan="${counts.yandex}" scope="colgroup" class="engine-yandex engine-title">Яндекс</th><th colspan="${counts.google}" scope="colgroup" class="engine-google engine-title">Google</th></tr><tr>${M.ENGINES.map(heading).join('')}</tr></thead><tbody id="query-rows"></tbody></table></div><p id="query-empty" class="query-empty" hidden>Запросы не найдены. Измените поиск или фильтры.</p><div class="table-footer"><span id="query-count" role="status" aria-live="polite"></span><button type="button" class="button-secondary" id="show-more">Показать ещё 25</button></div><p class="table-method">${method}</p></section>`;
   }
   function renderQueries() {
@@ -110,13 +111,14 @@
     view = M.rankingsView(report.rankings);
     let intro = report.intro.map(paragraphsHTML).join('');
     if (report.conclusions.length) intro += '<p class="archive-conclusion-title">Выводы</p>' + report.conclusions.map(paragraphsHTML).join('');
-    const stateNote = report.archive ? 'Источник: Google Таблица. Архив перенесён без пересчёта.' : view ? `${report.status === 'in_progress' ? 'Промежуточные данные. Итоговый отчёт будет подготовлен в конце месяца. ' : ''}Замеры Топвизора: ${view.before ? dateLabel(view.before.date) + ' — ' : ''}${dateLabel(view.after.date)}. ${esc(view.after.region)}, смартфоны.` : '';
+    const stateNote = !report.archive && view ? `${report.status === 'in_progress' ? 'Промежуточные данные. Итоговый отчёт будет подготовлен в конце месяца. ' : ''}Замеры Топвизора: ${view.before ? dateLabel(view.before.date) + ' — ' : ''}${dateLabel(view.after.date)}. ${esc(view.after.region)}, смартфоны.` : '';
     const note = view?.before && !view.metaMatch ? '<p class="metrics-note">Настройки замеров различаются. Динамику не сравниваем.</p>' : '';
     return `<div class="results-heading"><h2>Результаты за ${M.monthLabel(state.month).toLowerCase()}</h2>${intro}${stateNote ? `<p class="report-state">${stateNote}</p>` : ''}</div>${report.archive || view ? engineKpisHTML() + note + rankCharts() + trafficHTML() + queryTableHTML() : trafficHTML() + pendingHTML('results')}`;
   }
   function worksHTML() {
     if (!report.works.length) return pendingHTML('works');
-    return `<div class="works-heading"><h2>Работы за ${M.monthLabel(state.month).toLowerCase()}</h2><p>Что изменили, зачем и где посмотреть результат.</p></div><section class="surface"><table class="works-table"><thead><tr><th scope="col">Что сделали</th><th scope="col">Краткое описание</th><th scope="col">Для чего это нужно</th><th scope="col">Подробнее</th></tr></thead><tbody>${report.works.map(work => `<tr><td><h3 class="work-name">${esc(work.title)}</h3></td><td class="work-summary">${esc(work.summary)}</td><td data-label="Для чего это нужно">${work.why ? paragraphsHTML(work.why) : '—'}</td><td><button type="button" class="work-open" data-work="${esc(work.id)}" aria-label="Подробнее: ${esc(work.title)}">Подробнее${icon('arrow')}</button></td></tr>`).join('')}</tbody></table></section>`;
+    const details = hasWorkDetails(state.month);
+    return `<div class="works-heading"><h2>Работы за ${M.monthLabel(state.month).toLowerCase()}</h2></div><section class="surface"><table class="works-table${details ? '' : ' without-details'}"><thead><tr><th scope="col">Что сделали</th><th scope="col">Краткое описание</th><th scope="col">Для чего это нужно</th>${details ? '<th scope="col">Подробнее</th>' : ''}</tr></thead><tbody>${report.works.map(work => `<tr><td><h3 class="work-name">${esc(work.title)}</h3></td><td class="work-summary">${esc(work.summary)}</td><td data-label="Для чего это нужно">${work.why ? paragraphsHTML(work.why) : '—'}</td>${details ? `<td><button type="button" class="work-open" data-work="${esc(work.id)}" aria-label="Подробнее: ${esc(work.title)}">Подробнее${icon('arrow')}</button></td>` : ''}</tr>`).join('')}</tbody></table></section>`;
   }
   function evidenceHTML(item) {
     if (item.type === 'link') return `<p class="detail-resource">${linkHTML(item)}</p>`;
@@ -126,7 +128,7 @@
     return `<details class="evidence-block"><summary>${esc(item.label)}</summary><div class="evidence-content">${body}</div></details>`;
   }
   function renderDetail() {
-    const work = state.tab === 'works' && report.works.find(w => w.id === state.detail);
+    const work = state.tab === 'works' && hasWorkDetails(state.month) && report.works.find(w => w.id === state.detail);
     const key = work ? `${state.month}:${work.id}` : null;
     if (!work) {
       if (dialog.open) { dialog.close(); document.body.classList.remove('dialog-open'); (lastOpener?.isConnected ? lastOpener : $('tab-' + state.tab)).focus({preventScroll:true}); }
