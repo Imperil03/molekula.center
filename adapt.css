@@ -12,3 +12,74 @@
 .works-table.without-details th:last-child{width:35%}
 @media(max-width:1100px){.works-table.without-details td:first-child{grid-column:1/-1}}
 @media(max-width:600px){.archive-positions .rank-col{width:calc(60% / var(--visible-rank-columns))}}
+
+/* Position groups carry their identity through every row, not just the heading. */
+.queries-card{--rank-top3-bg:#e3f3e8;--rank-top3-ink:#226744;--rank-top10-bg:#ece9ff;--rank-top10-ink:#504097;--rank-top30-bg:#fff1d5;--rank-top30-ink:#80520e;--rank-other-bg:#f0f2f6;--rank-other-ink:#4e607b;--rank-yandex-bg:#fff8f4;--rank-yandex-current:#ffede5;--rank-yandex-ink:#9d2e1d;--rank-google-bg:#f5f8ff;--rank-google-current:#eaf1fd;--rank-google-ink:#245fac;--rank-divider:#d8dfeb}
+.queries-card .table-filters{display:grid;grid-template-columns:minmax(0,1.4fr) minmax(0,1fr);gap:20px}
+.queries-card .table-filters:has(.trend){grid-template-columns:minmax(0,1.4fr) minmax(0,1fr) minmax(0,.8fr)}
+.queries-card .filter-field{min-width:0;width:100%;flex-basis:auto}
+.queries-card .filter-field .select-wrap,.queries-card .filter-field select{width:100%;min-width:0;max-width:100%}
+.rank-legend{display:flex;flex-wrap:wrap;gap:12px 24px;margin:0 0 20px;font-size:14px;color:var(--ink)}
+.rank-legend>span{display:inline-flex;align-items:center;gap:8px}
+.rank-key{display:inline-block;width:16px;height:16px;border-radius:4px}
+.rank-top3{background:var(--rank-top3-bg);color:var(--rank-top3-ink)}
+.rank-top10{background:var(--rank-top10-bg);color:var(--rank-top10-ink)}
+.rank-top30{background:var(--rank-top30-bg);color:var(--rank-top30-ink)}
+.rank-other,.rank-out{background:var(--rank-other-bg);color:var(--rank-other-ink)}
+#positions-wrap{position:relative;max-height:min(70vh,760px);border:1px solid var(--rank-divider);border-radius:10px;scrollbar-color:#b1bacb #f0f2f6;scrollbar-width:thin;scrollbar-gutter:stable;scroll-padding-top:130px}
+#positions-wrap:focus-visible{outline:3px solid var(--accent);outline-offset:4px}
+.positions-table.snapshot-positions{min-width:960px;font-size:16px}
+.snapshot-positions .query-col{width:34%}
+.snapshot-positions .rank-col{width:calc(66% / var(--rank-columns))}
+.snapshot-positions thead{position:sticky;top:0;z-index:3}
+.snapshot-positions thead th{border-bottom:1px solid var(--rank-divider);color:var(--ink);font-size:14px;font-weight:500;padding:16px 8px}
+.snapshot-positions thead th time{white-space:nowrap;font-size:13px;margin-top:8px;color:inherit}
+.rank-date-short{display:none}
+.snapshot-positions th.engine-title{font-size:18px;font-weight:600;padding:14px 8px}
+.snapshot-positions .engine-yandex{background:var(--rank-yandex-bg)}
+.snapshot-positions .engine-google{background:var(--rank-google-bg)}
+.snapshot-positions th.engine-yandex{color:var(--rank-yandex-ink)}
+.snapshot-positions th.engine-google{color:var(--rank-google-ink)}
+.snapshot-positions .engine-yandex.current{background:var(--rank-yandex-current)}
+.snapshot-positions .engine-google.current{background:var(--rank-google-current)}
+.snapshot-positions .engine-start{border-left:1px solid var(--rank-divider)}
+.snapshot-positions .engine-google.engine-start{border-left:3px solid var(--rank-divider)}
+.snapshot-positions thead .current{font-weight:700}
+.snapshot-positions .query-heading,.snapshot-positions .query-name{position:sticky;left:0;background:white;text-align:left;color:var(--ink);border-right:1px solid var(--rank-divider)}
+.snapshot-positions .query-heading{z-index:4;padding-left:20px;background:#f4f5f8}
+.snapshot-positions .query-name{z-index:1;font-size:15px;font-weight:500;line-height:1.55;overflow-wrap:anywhere;padding:18px 20px;border-bottom:1px solid var(--line)}
+.snapshot-positions td{padding:16px 8px;border-bottom:1px solid var(--line)}
+.snapshot-positions tbody tr:hover .engine-yandex{background:var(--rank-yandex-current)}
+.snapshot-positions tbody tr:hover .engine-google{background:var(--rank-google-current)}
+.snapshot-positions tbody tr:hover .query-name{background:#f8f9fc}
+.rank-value{display:inline-flex;justify-content:center;align-items:center;min-width:42px;min-height:34px;padding:4px 8px;border-radius:6px;font-variant-numeric:tabular-nums;font-weight:600}
+.snapshot-positions .current .rank-value{font-weight:700;font-size:18px}
+.rank-missing{font-size:12px;color:var(--muted);font-weight:400;line-height:1.4}
+.rank-movement{display:block;margin-top:6px}
+.snapshot-positions .rank-movement .delta{font-size:12px;line-height:1.4}
+.rank-movement svg{width:14px;height:14px}
+@media(max-width:1000px){.queries-card .table-filters:has(.trend){grid-template-columns:minmax(0,1fr) minmax(0,1fr)}.queries-card .table-filters:has(.trend) .search{grid-column:1/-1}}
+@media(max-width:600px){
+  .queries-card .table-filters,.queries-card .table-filters:has(.trend){grid-template-columns:minmax(0,1fr)}
+  .rank-legend{font-size:12px;gap:12px 16px}
+  #positions-wrap{max-height:65vh;scroll-padding-top:90px}
+  .snapshot-positions .query-col{width:46%}
+  .snapshot-positions .rank-col{width:calc(54% / var(--visible-rank-columns))}
+  .table-scroll[data-engine=yandex] .snapshot-positions{--visible-rank-columns:var(--yandex-columns)}
+  .table-scroll[data-engine=google] .snapshot-positions{--visible-rank-columns:var(--google-columns)}
+  .positions-table.snapshot-positions{min-width:0}
+  .snapshot-positions thead th{font-size:12px;padding:14px 4px;line-height:1.4}
+  .snapshot-positions thead th time{font-size:12px}
+  .rank-date-full{display:none}
+  .rank-date-short{display:inline}
+  .snapshot-positions .query-heading,.snapshot-positions .query-name{padding-left:12px;padding-right:12px}
+  .snapshot-positions .query-name{font-size:13px;padding:16px 8px}
+  .snapshot-positions td{padding:14px 4px}
+  .snapshot-positions .engine-google.engine-start{border-left-width:1px}
+  .rank-value{min-width:30px;padding:4px 5px;font-size:15px}
+  .snapshot-positions .current .rank-value{font-size:16px}
+  .queries-card .mobile-engine button[data-engine=yandex][aria-pressed=true]{color:var(--rank-yandex-ink);background:var(--rank-yandex-current);border-color:#e5b5a2}
+  .queries-card .mobile-engine button[data-engine=google][aria-pressed=true]{color:var(--rank-google-ink);background:var(--rank-google-current);border-color:#a9bde1}
+  .queries-card .table-scroll-hint{display:none}
+}
+@media print{#positions-wrap{max-height:none;overflow:visible}.snapshot-positions thead,.snapshot-positions .query-heading,.snapshot-positions .query-name{position:static}.positions-table.snapshot-positions{min-width:0}}

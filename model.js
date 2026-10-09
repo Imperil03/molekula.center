@@ -36,9 +36,10 @@
   }
   function rankingsView(rankings) {
     if (!rankings?.after) return null;
-    const {before, after} = rankings;
+    const {start, before, after} = rankings;
     const matches = Object.fromEntries(ENGINES.map(e => [e, sameSettings(before, after, e)]));
     const beforeMap = new Map((before?.rows || []).map(r => [r.id, r]));
+    const startMap = new Map((start?.rows || []).map(r => [r.id, r]));
     const afterMap = new Map(after.rows.map(r => [r.id, r]));
     const rows = [...new Set([...afterMap.keys(), ...beforeMap.keys()])].map(id => {
       const old = beforeMap.get(id), current = afterMap.get(id), display = current || old;
@@ -47,7 +48,9 @@
       const row = {id, query:display.query, direction:display.direction || '', isNew, removed:!current};
       for (const engine of ENGINES) {
         const previous = renamed ? undefined : old?.[engine];
-        row[engine] = {before:previous, after:current?.[engine], change:rankChange(previous, current?.[engine], matches[engine], isNew)};
+        const initial = startMap.get(id);
+        const initialMatches = initial && normalize(initial.query) === normalize(display.query) && sameSettings(start,after,engine);
+        row[engine] = {start:initialMatches ? initial[engine] : undefined, before:previous, after:current?.[engine], change:rankChange(previous, current?.[engine], matches[engine], isNew)};
       }
       return row;
     });
@@ -64,7 +67,7 @@
         top3:{before:comparable ? count('before',3) : null, after:count('after',3)},
         top10:{before:comparable ? count('before',10) : null, after:count('after',10)}};
     }
-    return {before, after, rows, stats, metaMatch:ENGINES.every(e => matches[e])};
+    return {start, before, after, rows, stats, metaMatch:ENGINES.every(e => matches[e])};
   }
   function filterRows(rows, {search = '', direction = '', trend = 'all'} = {}) {
     const term = normalize(search).replaceAll('ё', 'е');
@@ -108,7 +111,7 @@
       if (report.rankings) {
         check(!!report.rankings.after, `${label}: нет текущего среза.`);
         check(report.rankings.after?.date?.slice(0,7) === label, `${label}: срез относится к другому месяцу.`);
-        for (const snapshot of [report.rankings.before, report.rankings.after].filter(Boolean)) {
+        for (const snapshot of [report.rankings.start, report.rankings.before, report.rankings.after].filter(Boolean)) {
           check(validDate(snapshot.date) && snapshot.region && snapshot.device && snapshot.sourceKey, `${label}: неполные настройки замера.`);
           check(Array.isArray(snapshot.rows) && new Set(snapshot.rows.map(r => r.id)).size === snapshot.rows.length, `${label}: неполные или повторные запросы.`);
           for (const row of snapshot.rows || []) {
@@ -117,6 +120,7 @@
           }
         }
         if (report.rankings.before) check(report.rankings.before.date < report.rankings.after.date, `${label}: неверный порядок дат.`);
+        if (report.rankings.start) check(report.rankings.start.date <= (report.rankings.before?.date || report.rankings.after.date), `${label}: первый замер позже отчётного периода.`);
       }
       if (report.traffic) check(Number.isInteger(report.traffic.visits) && report.traffic.visits >= 0, `${label}: неверное число визитов.`);
       check(Array.isArray(report.works), `${label}: отсутствует список работ.`);
