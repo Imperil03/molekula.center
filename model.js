@@ -18,6 +18,9 @@
     try { const url = new URL(value); if (url.protocol === 'https:' && !url.username && !url.password) return url.href; } catch (_) {}
     return null;
   }
+  function safeImageHref(value) {
+    return typeof value === 'string' && value.startsWith('evidence/') && /\.(png|jpe?g|webp)$/.test(value) && safeHref(value) === value ? value : null;
+  }
   function validDate(value) {
     return typeof value === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(value) &&
       !Number.isNaN(Date.parse(value)) && new Date(value + 'T12:00:00Z').toISOString().slice(0,10) === value;
@@ -132,10 +135,14 @@
         for (const evidence of work.evidence || []) {
           check(['link','comparison','table'].includes(evidence.type), `${label}: неизвестное подтверждение.`);
           if (evidence.type === 'link') check(!!safeHref(evidence.url), `${label}: небезопасное подтверждение.`);
+          if (evidence.type === 'comparison' && (own(evidence,'beforeImage') || own(evidence,'afterImage'))) {
+            check(!!safeImageHref(evidence.beforeImage) && !!safeImageHref(evidence.afterImage), `${label}: сравнение должно содержать два изображения внутри evidence.`);
+            check(['beforeAlt','afterAlt'].every(key => typeof evidence[key] === 'string' && evidence[key].trim()), `${label}: у снимков отсутствует описание.`);
+          }
         }
       }
     }
     return errors;
   }
-  return {ENGINES, months, monthLabel, getReport, defaultMonth, safeHref, validDate, normalize, rankChange, rankingsView, filterRows, validateData};
+  return {ENGINES, months, monthLabel, getReport, defaultMonth, safeHref, safeImageHref, validDate, normalize, rankChange, rankingsView, filterRows, validateData};
 });
