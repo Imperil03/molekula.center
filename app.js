@@ -132,12 +132,13 @@
     if (item.type === 'link') return `<p class="detail-resource">${linkHTML(item)}</p>`;
     let body = '';
     const hasImages = item.type === 'comparison' && M.safeImageHref(item.beforeImage) && M.safeImageHref(item.afterImage);
+    const isUrlMap = item.type === 'table' && item.rows.length > 0 && item.rows.every(row => row.length === 3 && [row[1],row[2]].every(value => typeof value === 'string' && value.startsWith('/')));
     if (item.type === 'comparison') {
       const sideHTML = (side,label) => `<div><h4>${label}</h4>${item[side] ? `<p>${esc(item[side])}</p>` : ''}${hasImages ? `<figure class="comparison-screenshot"><a href="${esc(item[side + 'Image'])}" target="_blank" rel="noopener noreferrer" aria-label="${label}: открыть снимок в полном размере"><img src="${esc(item[side + 'Image'])}" alt="${esc(item[side + 'Alt'])}" loading="lazy" decoding="async"></a><figcaption>Нажмите на снимок, чтобы открыть его в полном размере.</figcaption></figure>` : ''}</div>`;
       body = `<div class="comparison-grid${hasImages ? ' has-images' : ''}">${sideHTML('before','Было')}${sideHTML('after','Стало')}</div>`;
     }
-    if (item.type === 'table') body = `<div class="table-scroll" role="region" aria-label="${esc(item.label)}" tabindex="0"><table class="evidence-table"><thead><tr>${item.columns.map(c => `<th scope="col">${esc(c)}</th>`).join('')}</tr></thead><tbody>${item.rows.map(row => `<tr>${item.columns.map((_,i) => `<td>${esc(row[i])}</td>`).join('')}</tr>`).join('')}</tbody></table></div>`;
-    return `<details class="evidence-block"${hasImages ? ' open' : ''}><summary>${esc(item.label)}</summary><div class="evidence-content">${body}</div></details>`;
+    if (item.type === 'table') body = `<div class="table-scroll" role="region" aria-label="${esc(item.label)}"${isUrlMap ? '' : ' tabindex="0"'}><table class="evidence-table${isUrlMap ? ' evidence-url-map' : ''}" role="table"><thead role="rowgroup"><tr role="row">${item.columns.map(c => `<th scope="col" role="columnheader">${esc(c)}</th>`).join('')}</tr></thead><tbody role="rowgroup">${item.rows.map(row => `<tr role="row">${item.columns.map((column,i) => `<td data-label="${esc(column)}" role="cell">${isUrlMap && i > 0 ? esc(row[i]).replaceAll('/','/<wbr>').replaceAll('-','-<wbr>') : esc(row[i])}</td>`).join('')}</tr>`).join('')}</tbody></table></div>`;
+    return `<details class="evidence-block"${hasImages || item.type === 'table' ? ' open' : ''}><summary>${esc(item.label)}</summary><div class="evidence-content">${body}</div></details>`;
   }
   function renderDetail() {
     const work = state.tab === 'works' && hasWorkDetails(state.month) && report.works.find(w => w.id === state.detail);
