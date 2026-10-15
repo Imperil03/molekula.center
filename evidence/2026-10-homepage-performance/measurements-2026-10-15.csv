@@ -1,0 +1,9 @@
+﻿Дата;Этап;Устройство;Запуск;PageSpeed, баллы;FCP, мс;LCP, мс;TBT, мс;CLS;Speed Index, мс;Lighthouse;Отчёт PageSpeed
+2026-10-15;До;Телефон;1;62;2644.0;12657.0;114.0;0,097;6658.0;13.5.0;https://pagespeed.web.dev/analysis/https-molekula-center/k1c8okdfbp?form_factor=mobile
+2026-10-15;До;Телефон;2;57;3148.0;9528.0;180.0;0,122;6199.0;13.5.0;https://pagespeed.web.dev/analysis/https-molekula-center/ewspz477bx?form_factor=mobile
+2026-10-15;До;Компьютер;1;82;701.0;1988.0;68.0;0,11;2307.0;13.5.0;https://pagespeed.web.dev/analysis/https-molekula-center/k1c8okdfbp?form_factor=desktop
+2026-10-15;До;Компьютер;2;83;669.0;1783.0;123.0;0,112;1964.0;13.5.0;https://pagespeed.web.dev/analysis/https-molekula-center/ewspz477bx?form_factor=desktop
+2026-10-15;После;Телефон;1;87;2139.0;3310.0;6.0;0,021;4758.0;13.5.0;https://pagespeed.web.dev/analysis/https-molekula-center/os2y5i8dsc?form_factor=mobile
+2026-10-15;После;Телефон;2;83;2152.0;3301.0;202.0;0,021;5024.0;13.5.0;https://pagespeed.web.dev/analysis/https-molekula-center/idfn14j8om?form_factor=mobile
+2026-10-15;После;Компьютер;1;92;550.0;761.0;196.0;0,001;1391.0;13.5.0;https://pagespeed.web.dev/analysis/https-molekula-center/os2y5i8dsc?form_factor=desktop
+2026-10-15;После;Компьютер;2;96;517.0;600.0;43.0;0,001;1928.0;13.5.0;https://pagespeed.web.dev/analysis/https-molekula-center/idfn14j8om?form_factor=desktop
