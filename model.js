@@ -131,7 +131,21 @@
       for (const work of report.works || []) {
         check(['id','title','summary','result'].every(k => typeof work[k] === 'string' && work[k].trim()), `${label}: неполная работа.`);
         check(work.why === null || typeof work.why === 'string', `${label}: неверное пояснение работы.`);
-        for (const section of work.sections || []) for (const link of section.links || []) check(!!safeHref(link.url), `${label}: небезопасная ссылка.`);
+        for (const section of work.sections || []) {
+          const validSection = !!section && typeof section === 'object' && !Array.isArray(section);
+          check(validSection, `${label}: неверный раздел работы.`);
+          if (!validSection) continue;
+          if (own(section,'title')) check(typeof section.title === 'string', `${label}: неверный заголовок раздела.`);
+          if (own(section,'afterText')) check(typeof section.afterText === 'string', `${label}: неверный текст после таблицы.`);
+          if (own(section,'table')) {
+            const table = section.table;
+            const validColumns = Array.isArray(table?.columns) && table.columns.length > 0 && table.columns.every(column => typeof column === 'string' && column.trim());
+            const validRows = Array.isArray(table?.rows) && table.rows.every(row => Array.isArray(row) && row.length === table.columns?.length && row.every(cell => typeof cell === 'string' || (typeof cell === 'number' && Number.isFinite(cell))));
+            check(!!table && typeof table === 'object' && !Array.isArray(table) && validColumns && validRows, `${label}: неверная таблица раздела.`);
+            if (table && own(table,'label')) check(typeof table.label === 'string', `${label}: неверная подпись таблицы.`);
+          }
+          for (const link of section.links || []) check(!!safeHref(link.url), `${label}: небезопасная ссылка.`);
+        }
         for (const evidence of work.evidence || []) {
           check(['link','comparison','table'].includes(evidence.type), `${label}: неизвестное подтверждение.`);
           if (evidence.type === 'link') check(!!safeHref(evidence.url), `${label}: небезопасное подтверждение.`);
