@@ -33,9 +33,27 @@
     if (after === null) return {kind:'lost', amount:null};
     return {kind:before > after ? 'up' : before < after ? 'down' : 'same', amount:Math.abs(before - after)};
   }
+  function settingsContext(snapshot, engine) {
+    if (!snapshot) return null;
+    const meta = snapshot.engines?.[engine] || {};
+    const device = value => ['2','смартфон','смартфоны','smartphone','mobile'].includes(normalize(value)) ? 'mobile' : normalize(value);
+    return {engine, searcher:String(meta.searcher ?? (engine === 'yandex' ? 0 : 1)),
+      region:normalize(meta.region ?? snapshot.region), regionId:meta.regionId == null ? null : String(meta.regionId),
+      index:meta.index == null ? null : String(meta.index), device:device(meta.device ?? snapshot.device),
+      language:normalize(meta.language ?? meta.lang ?? 'ru'), depth:meta.depth == null ? null : Number(meta.depth)};
+  }
   function sameSettings(before, after, engine) {
-    if (!before || !after || before.region !== after.region || before.device !== after.device || before.sourceKey !== after.sourceKey) return false;
-    return JSON.stringify(before.engines?.[engine] ?? null) === JSON.stringify(after.engines?.[engine] ?? null);
+    const a = settingsContext(before,engine), b = settingsContext(after,engine);
+    if (!a || !b) return false;
+    return ['engine','searcher','region','device','language'].every(key => a[key] === b[key]) &&
+      ['regionId','index','depth'].every(key => a[key] === null || b[key] === null || a[key] === b[key]);
+  }
+  function observation(snapshot, row, engine) {
+    const saved = row?.observations?.[engine];
+    const status = saved?.status || (!row || !own(row,engine) ? 'missing' : row[engine] === null ? 'not_found' : 'found');
+    const value = status === 'found' ? row?.[engine] : status === 'not_found' ? null : undefined;
+    return {...saved, status, value, depth:saved?.depth ?? snapshot?.engines?.[engine]?.depth,
+      checkedAt:saved?.checkedAt ?? snapshot?.engines?.[engine]?.checkedAt ?? snapshot?.date};
   }
   function rankingsView(rankings) {
     if (!rankings?.after) return null;
@@ -50,10 +68,14 @@
       const isNew = !!before && (!old || renamed || ENGINES.every(e => !own(old, e)));
       const row = {id, query:display.query, direction:display.direction || '', isNew, removed:!current};
       for (const engine of ENGINES) {
-        const previous = renamed ? undefined : old?.[engine];
+        const beforeObservation = observation(before,renamed ? null : old,engine), afterObservation = observation(after,current,engine);
+        const previous = beforeObservation.value;
         const initial = startMap.get(id);
         const initialMatches = initial && normalize(initial.query) === normalize(display.query) && sameSettings(start,after,engine);
-        row[engine] = {start:initialMatches ? initial[engine] : undefined, before:previous, after:current?.[engine], change:rankChange(previous, current?.[engine], matches[engine], isNew)};
+        const startObservation = observation(start,initialMatches ? initial : null,engine);
+        row[engine] = {start:startObservation.value, before:previous, after:afterObservation.value,
+          observations:{start:startObservation,before:beforeObservation,after:afterObservation},
+          change:rankChange(previous, afterObservation.value, matches[engine], isNew)};
       }
       return row;
     });
@@ -67,14 +89,17 @@
       stats[engine] = {comparable, total:population.length, currentTotal:currentRows.length,
         newCount:rows.filter(r => r.isNew && r[engine].after !== undefined).length,
         missingCount:after.rows.length - currentRows.length,
+        errorCount:rows.filter(r => r[engine].observations.after.status === 'error').length,
         top3:{before:comparable ? count('before',3) : null, after:count('after',3)},
         top10:{before:comparable ? count('before',10) : null, after:count('after',10)}};
     }
     return {start, before, after, rows, stats, metaMatch:ENGINES.every(e => matches[e])};
   }
-  function filterRows(rows, {search = '', direction = '', trend = 'all'} = {}) {
+  function filterRows(rows, {search = '', direction = '', trend = 'all', cohort = 'all'} = {}, cohorts = []) {
     const term = normalize(search).replaceAll('ё', 'е');
+    const preset = cohorts.find(item => item.id === cohort), cohortIds = preset && new Set(preset.keywordIds);
     return rows.filter(row => {
+      if (cohortIds && !cohortIds.has(row.id)) return false;
       if (term && !normalize(row.query).replaceAll('ё','е').includes(term)) return false;
       if (direction && row.direction !== direction) return false;
       const kinds = ENGINES.map(e => row[e]?.change?.kind || 'no_data');
@@ -114,18 +139,38 @@
       if (report.rankings) {
         check(!!report.rankings.after, `${label}: нет текущего среза.`);
         check(report.rankings.after?.date?.slice(0,7) === label, `${label}: срез относится к другому месяцу.`);
-        for (const snapshot of [report.rankings.start, report.rankings.before, report.rankings.after].filter(Boolean)) {
+        for (const cohort of report.rankings.cohorts || []) {
+          check(typeof cohort.id === 'string' && typeof cohort.label === 'string' && Array.isArray(cohort.keywordIds) && cohort.keywordIds.every(id => typeof id === 'string'), `${label}: неверная выборка запросов.`);
+          check(!own(cohort,'pageUrls') || (Array.isArray(cohort.pageUrls) && cohort.pageUrls.every(url => typeof url === 'string' && (!!safeHref(url) || /^\/(?!\/)[^\s?#]*$/.test(url) && !url.split('/').includes('..')))), `${label}: неверные страницы выборки.`);
+        }
+        for (const download of report.rankings.downloads || []) check(typeof download.label === 'string' && !!safeHref(download.url), `${label}: небезопасная выгрузка позиций.`);
+        for (const snapshot of [report.rankings.start, report.rankings.before, report.rankings.after,...(report.rankings.history || [])].filter(Boolean)) {
           check(validDate(snapshot.date) && snapshot.region && snapshot.device && snapshot.sourceKey, `${label}: неполные настройки замера.`);
           check(Array.isArray(snapshot.rows) && new Set(snapshot.rows.map(r => r.id)).size === snapshot.rows.length, `${label}: неполные или повторные запросы.`);
           for (const row of snapshot.rows || []) {
             check(typeof row.id === 'string' && typeof row.query === 'string' && row.query.trim(), `${label}: запрос без ID или текста.`);
             for (const engine of ENGINES) if (own(row, engine)) check(row[engine] === null || (Number.isInteger(row[engine]) && row[engine] > 0 && row[engine] <= 1000), `${label}: неверная позиция.`);
+            for (const engine of ENGINES) if (row.observations?.[engine]) {
+              const item = row.observations[engine];
+              check(['found','not_found','error','missing'].includes(item.status), `${label}: неверный статус замера.`);
+              check(item.status !== 'found' || (Number.isInteger(row[engine]) && row[engine] > 0), `${label}: найденная позиция отсутствует.`);
+              check(item.status !== 'not_found' || row[engine] === null, `${label}: отсутствие сайта не подтверждено.`);
+              check(!own(item,'depth') || (Number.isInteger(item.depth) && item.depth > 0), `${label}: неверная глубина замера.`);
+              check(!item.url || !!safeHref(item.url), `${label}: небезопасный URL замера.`);
+            }
           }
         }
         if (report.rankings.before) check(report.rankings.before.date < report.rankings.after.date, `${label}: неверный порядок дат.`);
         if (report.rankings.start) check(report.rankings.start.date <= (report.rankings.before?.date || report.rankings.after.date), `${label}: первый замер позже отчётного периода.`);
       }
-      if (report.traffic) check(Number.isInteger(report.traffic.visits) && report.traffic.visits >= 0, `${label}: неверное число визитов.`);
+      if (report.traffic) {
+        const traffic = report.traffic;
+        check(Number.isInteger(traffic.visits) && traffic.visits >= 0, `${label}: неверное число визитов.`);
+        if (own(traffic,'previousVisits')) check(Number.isInteger(traffic.previousVisits) && traffic.previousVisits >= 0, `${label}: неверное сравнение трафика.`);
+        for (const period of [traffic.period,traffic.comparisonPeriod].filter(Boolean)) check(validDate(period.from) && validDate(period.to) && period.from <= period.to, `${label}: неверный период трафика.`);
+        for (const engine of Object.values(traffic.engines || {})) check(['current','previous'].every(key => Number.isInteger(engine[key]) && engine[key] >= 0), `${label}: неверный трафик поисковика.`);
+        for (const week of traffic.weekly || []) check(validDate(week.from) && validDate(week.to) && week.from <= week.to && ['visits','google','yandex','other'].every(key => Number.isInteger(week[key]) && week[key] >= 0), `${label}: неверная неделя трафика.`);
+      }
       check(Array.isArray(report.works), `${label}: отсутствует список работ.`);
       check(new Set((report.works || []).map(w => w.id)).size === report.works?.length, `${label}: повторные работы.`);
       for (const work of report.works || []) {
@@ -158,5 +203,5 @@
     }
     return errors;
   }
-  return {ENGINES, months, monthLabel, getReport, defaultMonth, safeHref, safeImageHref, validDate, normalize, rankChange, rankingsView, filterRows, validateData};
+  return {ENGINES, months, monthLabel, getReport, defaultMonth, safeHref, safeImageHref, validDate, normalize, rankChange, settingsContext, sameSettings, observation, rankingsView, filterRows, validateData};
 });

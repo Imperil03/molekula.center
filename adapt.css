@@ -107,3 +107,62 @@
 .comparison-screenshot img{display:block;width:100%;max-width:100%;height:auto}
 .comparison-screenshot figcaption{margin-top:10px;color:var(--muted);font-size:12px;line-height:1.6}
 @media(max-width:600px){.comparison-grid.has-images{grid-template-columns:minmax(0,1fr);gap:26px}}
+
+/* Period-based traffic keeps the report's typography and existing chart colors. */
+.traffic-section{padding:32px;margin-top:32px;min-width:0}
+.traffic-section .section-heading{margin-bottom:12px}
+.traffic-period,.traffic-chart-period{color:var(--muted);font-size:14px;line-height:1.6}
+.traffic-kpis{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:24px;margin:24px 0}
+.traffic-metric{min-width:0;padding:0 24px;border-left:1px solid var(--line)}
+.traffic-metric:first-child{padding-left:0;border-left:0}
+.traffic-metric h3{font-size:14px;font-weight:500;margin-bottom:12px;line-height:1.6}
+.traffic-metric .traffic-value{font-size:34px;line-height:1.3;margin:0 0 10px;font-weight:600}
+.traffic-metric .traffic-value span{display:block;font-size:12px;color:var(--muted);font-weight:400;margin:3px 0 0}
+.traffic-change{font-size:17px;font-weight:600;line-height:1.5}
+.traffic-change span{font-size:12px;font-weight:400;color:var(--muted);display:block;margin-top:4px}
+.traffic-history{border-top:1px solid var(--line);padding-top:24px;margin-top:24px;min-width:0;max-width:100%}
+.traffic-history h3{font-size:18px;font-weight:600;margin-bottom:8px}
+.traffic-chart{display:block;width:100%;height:auto;max-width:100%;margin-top:16px;overflow:visible}
+.traffic-chart-mobile{display:none}
+.traffic-chart text{font-family:inherit;font-size:12px;fill:var(--muted)}
+.traffic-grid-line{stroke:var(--line);stroke-width:1;vector-effect:non-scaling-stroke}
+.traffic-line{fill:none;stroke-width:2;stroke-linejoin:round;stroke-linecap:round;vector-effect:non-scaling-stroke}
+.traffic-point{stroke:none}
+.traffic-line-visits{stroke:var(--accent)}.traffic-point-visits{fill:var(--accent)}
+.traffic-line-google{stroke:#14877e}.traffic-point-google{fill:#14877e}
+.traffic-line-yandex{stroke:#7e8ba3}.traffic-point-yandex{fill:#7e8ba3}
+.traffic-legend{display:flex;flex-wrap:wrap;gap:12px 24px;margin:14px 0 20px;font-size:12px;color:var(--muted)}
+.traffic-legend span{display:inline-flex;align-items:center;gap:8px}
+.traffic-key{display:inline-block;width:18px;height:3px;background:var(--accent)}
+.traffic-key-google{background:#14877e}.traffic-key-yandex{background:#7e8ba3}
+.traffic-data{margin-top:20px;font-size:12px;color:var(--muted)}
+.traffic-data summary{cursor:pointer;display:list-item;width:fit-content;padding:6px 0}
+.traffic-data summary:focus-visible{outline:2px solid var(--accent);outline-offset:4px}
+.traffic-data .table-scroll{margin-top:12px;max-width:100%;min-width:0;overflow-x:auto;overscroll-behavior-inline:contain}
+.traffic-data .evidence-table{min-width:480px}
+.traffic-data th,.traffic-data td{font-size:12px}
+.traffic-section>.source-label{margin-top:24px;line-height:1.6}
+.traffic-section .traffic-context{margin-top:8px;font-size:12px;color:var(--muted);line-height:1.7}
+.queries-card .table-filters:has(.cohort){grid-template-columns:repeat(2,minmax(0,1fr))}
+.ranking-downloads{font-size:12px;display:flex;gap:16px;flex-wrap:wrap}
+.ranking-downloads a{display:inline-flex;align-items:center;gap:5px;color:var(--accent)}
+.ranking-downloads svg{width:14px;height:14px;flex:0 0 14px}
+.rank-sources{font-size:12px;line-height:1.7;color:var(--muted);margin-top:8px}
+.rank-error{color:#80520e}
+@media(max-width:600px){
+  .traffic-section{padding:22px 18px;margin-top:24px}
+  .traffic-kpis{gap:14px;margin:22px 0}
+  .traffic-metric{padding:0 0 0 14px}
+  .traffic-metric h3{font-size:12px;margin-bottom:10px}
+  .traffic-metric .traffic-value{font-size:26px}
+  .traffic-change{font-size:15px}
+  .traffic-period,.traffic-chart-period{font-size:12px}
+  .traffic-history h3{font-size:16px}
+  .traffic-chart-desktop{display:none}
+  .traffic-chart-mobile{display:block;max-width:360px;margin-inline:auto}
+  .traffic-chart-mobile text{font-size:14px}
+  .traffic-legend{gap:10px 16px}
+  .queries-card .table-filters:has(.cohort){grid-template-columns:minmax(0,1fr)}
+  .queries-card .section-heading:has(.ranking-downloads){align-items:flex-start;gap:14px;flex-direction:column}
+}
+@media(max-width:380px){.traffic-kpis{gap:8px}.traffic-metric{padding-left:8px}.traffic-metric .traffic-value{font-size:23px}.traffic-metric h3{font-size:11px}}
