@@ -165,7 +165,8 @@
   }
   function resultsHTML() {
     view = M.rankingsView(report.rankings);
-    let intro = report.intro.map(paragraphsHTML).join('');
+    const introBody = report.intro.map(report.archive ? paragraphsHTML : detailParagraphsHTML).join('');
+    let intro = introBody && !report.archive ? `<div class="results-intro">${introBody}</div>` : introBody;
     if (report.conclusions.length) intro += '<p class="archive-conclusion-title">Выводы</p>' + report.conclusions.map(paragraphsHTML).join('');
     return `<div class="results-heading"><h2>Результаты за ${M.monthLabel(state.month).toLowerCase()}</h2>${intro}</div>${report.archive || view ? engineKpisHTML() + rankCharts() + trafficHTML() + queryTableHTML() : trafficHTML() + pendingHTML('results')}`;
   }
