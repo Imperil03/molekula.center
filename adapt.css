@@ -48,6 +48,9 @@
 .snapshot-positions thead th{border-bottom:1px solid var(--rank-divider);color:var(--ink);font-size:14px;font-weight:500;padding:16px 8px}
 .snapshot-positions thead th time{white-space:nowrap;font-size:13px;margin-top:8px;color:inherit}
 .rank-date-short{display:none}
+.rank-header-share{display:flex;flex-direction:column;align-items:center;gap:1px;margin-top:5px;font-variant-numeric:tabular-nums;line-height:1.25}
+.rank-header-range{font-size:10px;font-weight:400;color:var(--muted)}
+.rank-header-percent{font-size:12px;font-weight:600;color:inherit}
 .positions-table.snapshot-positions th.engine-title{font-size:18px;font-weight:700;padding:14px 8px;background:var(--rank-group-bg);color:var(--ink)}
 .snapshot-positions td.engine-yandex,.snapshot-positions td.engine-google{background:#fff}
 .snapshot-positions th.engine-yandex,.snapshot-positions th.engine-google{color:var(--ink)}

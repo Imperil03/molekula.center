@@ -110,6 +110,23 @@
       return true;
     });
   }
+  function topShare(rows, engine, role, {archive = false, top = 10} = {}) {
+    const total = rows.length;
+    let count = 0, measured = 0;
+    for (const row of rows) {
+      const value = row[engine]?.[role];
+      const numeric = archive && typeof value === 'string' && value.trim() ? Number(value) : value;
+      const validRank = typeof numeric === 'number' && Number.isInteger(numeric) && numeric > 0;
+      const status = archive ? (validRank ? 'found' : 'missing') :
+        row[engine]?.observations?.[role]?.status || (value === null ? 'not_found' : validRank ? 'found' : 'missing');
+      if (status === 'not_found') measured++;
+      else if (status === 'found' && validRank) {
+        measured++;
+        if (numeric <= top) count++;
+      }
+    }
+    return {count, total, measured, percent:measured ? Math.round(count / total * 100) : null};
+  }
   function validateData(data) {
     const errors = [], check = (test, message) => { if (!test) errors.push(message); };
     if (!data?.project || !Array.isArray(data.reports)) return ['Нет настроек проекта или месяцев.'];
@@ -203,5 +220,5 @@
     }
     return errors;
   }
-  return {ENGINES, months, monthLabel, getReport, defaultMonth, safeHref, safeImageHref, validDate, normalize, rankChange, settingsContext, sameSettings, observation, rankingsView, filterRows, validateData};
+  return {ENGINES, months, monthLabel, getReport, defaultMonth, safeHref, safeImageHref, validDate, normalize, rankChange, settingsContext, sameSettings, observation, rankingsView, filterRows, topShare, validateData};
 });

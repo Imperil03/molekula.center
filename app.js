@@ -118,6 +118,12 @@
     if (['up','down'].includes(change.kind)) return `<span class="delta ${change.kind === 'up' ? 'positive' : 'negative'}" aria-label="${change.kind === 'up' ? 'Рост' : 'Снижение'} на ${change.amount}">${icon(change.kind)}${number(change.amount)}</span>`;
     return `<span class="delta ${change.kind === 'appeared' ? 'positive' : change.kind === 'lost' ? 'negative' : 'neutral'}">${labels[change.kind]}</span>`;
   }
+  function topShareText(share) {
+    return share.percent === null ? '—' : `${number(share.percent)}%`;
+  }
+  function topShareLabel(share) {
+    return share.percent === null ? 'Нет замеров для расчёта' : `${number(share.count)} из ${number(share.total)} запросов в топ-10`;
+  }
   function queryTableHTML() {
     if (!report.archive && !view) return '';
     const archive = report.archive, rows = archive ? archive.rows : view.rows;
@@ -125,7 +131,12 @@
     positionColumns = Object.fromEntries(M.ENGINES.map(engine => [engine, archive ? archive.dates[engine].map((d,i,dates) => ({...d,key:i,role:i === dates.length - 1 ? 'after' : i === 0 ? 'start' : 'before'})) :
       ['start','before','after'].filter(role => view[role] && (role !== 'start' || view.start.date !== view.after.date)).map(role => ({key:role,role,date:view[role].date}))]));
     const counts = Object.fromEntries(M.ENGINES.map(e => [e,positionColumns[e].length]));
-    const heading = engine => positionColumns[engine].map((column,i) => `<th id="rank-${engine}-${column.key}" scope="col" class="engine-${engine} period-${column.role} ${i === 0 ? 'engine-start' : ''} ${column.role === 'after' ? 'current' : ''}" aria-label="${dateLabel(column.date)}"><time datetime="${column.date}" aria-label="${dateLabel(column.date)}"><span class="rank-date-full">${dateLabel(column.date)}</span><span class="rank-date-short" aria-hidden="true">${dateLabel(column.date).slice(0,5)}</span></time></th>`).join('');
+    const selected = M.filterRows(rows,state.filters,report.rankings?.cohorts);
+    const heading = engine => positionColumns[engine].map((column,i) => {
+      const share = archive ? null : M.topShare(selected,engine,column.key), shareId = `rank-share-${engine}-${column.key}`;
+      const metric = archive ? '' : `<span class="rank-header-share"><span class="rank-header-range" aria-hidden="true">1–10</span><span id="${shareId}" class="rank-header-percent" aria-label="${topShareLabel(share)}" title="${topShareLabel(share)}">${topShareText(share)}</span></span>`;
+      return `<th id="rank-${engine}-${column.key}" scope="col" class="engine-${engine} period-${column.role} ${i === 0 ? 'engine-start' : ''} ${column.role === 'after' ? 'current' : ''}" aria-label="${dateLabel(column.date)}"${archive ? '' : ` aria-describedby="${shareId}"`}><time datetime="${column.date}" aria-label="${dateLabel(column.date)}"><span class="rank-date-full">${dateLabel(column.date)}</span><span class="rank-date-short" aria-hidden="true">${dateLabel(column.date).slice(0,5)}</span></time>${metric}</th>`;
+    }).join('');
     const columns = M.ENGINES.map(engine => positionColumns[engine].map(() => `<col class="rank-col engine-${engine}">`).join('')).join('');
     const cohorts = report.rankings?.cohorts || [], downloads = report.rankings?.downloads || [];
     const cohortFilter = cohorts.length ? `<div class="filter-field cohort"><label for="cohort-filter">Выборка запросов</label><div class="select-wrap"><select id="cohort-filter"><option value="all">Все ${rows.length} запросов</option>${cohorts.filter(c => c.id !== 'all').map(c => `<option value="${esc(c.id)}">${esc(c.label)}</option>`).join('')}</select>${icon('chevron')}</div></div>` : '';
@@ -136,6 +147,14 @@
     if (!$('query-rows')) return;
     const archive = report.archive, allRows = archive ? archive.rows : view.rows;
     const filtered = M.filterRows(allRows,state.filters,report.rankings?.cohorts), visible = filtered.slice(0,state.limit);
+    for (const engine of M.ENGINES) for (const column of positionColumns[engine]) {
+      const element = $(`rank-share-${engine}-${column.key}`);
+      if (!element) continue;
+      const share = M.topShare(filtered,engine,column.key,{archive:!!archive});
+      element.textContent = topShareText(share);
+      element.title = topShareLabel(share);
+      element.setAttribute('aria-label',topShareLabel(share));
+    }
     $('query-rows').innerHTML = visible.map((row,rowIndex) => `<tr><th id="query-${rowIndex}" scope="row" class="query-name">${esc(row.query)}</th>${M.ENGINES.map(engine => positionColumns[engine].map((column,i) => {
       const value = row[engine][column.key], change = !archive && column.role === 'after' && row[engine].change;
       const movement = change && ['up','down','appeared','lost','new'].includes(change.kind) ? `<span class="rank-movement">${deltaHTML(change)}</span>` : '';
