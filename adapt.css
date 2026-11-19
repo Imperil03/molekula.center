@@ -116,6 +116,68 @@
 .comparison-screenshot figcaption{margin-top:10px;color:var(--muted);font-size:12px;line-height:1.6}
 @media(max-width:600px){.comparison-grid.has-images{grid-template-columns:minmax(0,1fr);gap:26px}}
 
+.image-viewer {
+  --viewer-gutter: clamp(12px, 3vw, 32px);
+  position: fixed;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  max-width: none;
+  max-height: none;
+  margin: 0;
+  padding: var(--viewer-gutter);
+  border: 0;
+  background: transparent;
+  color: var(--ink);
+}
+.image-viewer[open] { display: grid; place-items: center; }
+.image-viewer::backdrop { background: rgb(23 32 57 / 80%); }
+.image-viewer-panel {
+  width: min(1280px, 100%);
+  border-radius: 12px;
+  overflow: hidden;
+  background: var(--surface);
+}
+.image-viewer-toolbar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 8px 12px;
+  border-bottom: 1px solid var(--line);
+}
+.image-viewer-toolbar h2 {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-size: clamp(14px, 2.5vw, 18px);
+  font-weight: 600;
+}
+.image-viewer-close {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  flex: none;
+  min-height: 44px;
+  padding: 0 12px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: var(--surface);
+  font-size: 14px;
+  font-weight: 600;
+}
+.image-viewer-close:hover { background: var(--accent-soft); color: var(--accent); }
+.image-viewer-close svg { width: 18px; height: 18px; }
+.image-viewer-photo {
+  display: block;
+  width: 100%;
+  max-height: calc(100dvh - 2 * var(--viewer-gutter) - 64px);
+  height: auto;
+  object-fit: contain;
+  background: var(--page);
+}
+@media print { .image-viewer { display: none !important; } }
+
 /* Period-based traffic keeps the report's typography and existing chart colors. */
 .traffic-section{padding:32px;margin-top:32px;min-width:0}
 .traffic-section .section-heading{margin-bottom:12px}

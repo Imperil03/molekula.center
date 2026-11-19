@@ -10,10 +10,10 @@
   <link rel="preload" href="assets/fonts/Montserrat-SemiBold.woff2" as="font" type="font/woff2" crossorigin>
   <link rel="stylesheet" href="styles.css?v=631f88daee0b">
   <link rel="stylesheet" href="results.css?v=2985867da92b">
-  <link rel="stylesheet" href="adapt.css?v=1874fe2375fa">
-  <script src="report-data.js?v=5ec514ef89a7" defer></script>
+  <link rel="stylesheet" href="adapt.css?v=3966544ca34c">
+  <script src="report-data.js?v=6458b49aaf5a" defer></script>
   <script src="model.js?v=4c2d1e0c1d0c" defer></script>
-  <script src="app.js?v=1d6e18825b06" defer></script>
+  <script src="app.js?v=fd21df843b25" defer></script>
 </head>
 <body>
   <a class="skip-link" href="#report-content">К содержанию отчёта</a>
@@ -38,6 +38,18 @@
   <dialog id="detail-dialog" class="detail-dialog" aria-labelledby="detail-title">
     <div class="drawer-header"><div><h2 id="detail-title"></h2><p id="detail-meta"></p></div><button type="button" id="close-detail" class="icon-button" aria-label="Закрыть подробности" autofocus><svg aria-hidden="true" viewBox="0 0 24 24"><path d="m6 6 12 12M18 6 6 18"/></svg></button></div>
     <div id="detail-body" class="drawer-body"></div>
+  </dialog>
+  <dialog id="image-dialog" class="image-viewer" aria-labelledby="image-title">
+    <div class="image-viewer-panel">
+      <div class="image-viewer-toolbar">
+        <h2 id="image-title">Снимок</h2>
+        <button type="button" id="close-image" class="image-viewer-close" autofocus>
+          <svg aria-hidden="true" viewBox="0 0 24 24"><path d="m6 6 12 12M18 6 6 18"/></svg>
+          Закрыть
+        </button>
+      </div>
+      <img id="evidence-image" class="image-viewer-photo" alt="" decoding="async">
+    </div>
   </dialog>
   <p id="announcement" class="sr-only" role="status" aria-live="polite"></p>
 </body>

@@ -11,14 +11,24 @@
   const dateLabel = value => value ? new Intl.DateTimeFormat('ru-RU',{day:'2-digit',month:'2-digit',year:'numeric'}).format(new Date(value + 'T12:00:00Z')) : '';
   const icon = (name, cls = '') => `<svg class="${cls}" width="20" height="20" aria-hidden="true" viewBox="0 0 24 24">${{
     arrow:'<path d="M5 12h14m-5-5 5 5-5 5"/>', chevron:'<path d="m9 5 7 7-7 7"/>',
-    external:'<path d="M7 17 17 7M7 7h10v10"/>', work:'<rect x="5" y="5" width="14" height="16" rx="2"/><path d="M9 5V3h6v2m-6 6h6m-6 5h6"/>',
+    external:'<path d="M7 17 17 7M7 7h10v10"/>', zoom:'<circle cx="10.5" cy="10.5" r="5.5"/><path d="m15 15 4 4m-11-8.5h5m-2.5-2.5v5"/>',
+    work:'<rect x="5" y="5" width="14" height="16" rx="2"/><path d="M9 5V3h6v2m-6 6h6m-6 5h6"/>',
     chart:'<path d="M4 3v17h17M9 15v-4m5 4V6m5 9V9"/>', up:'<path d="M12 20V4m-6 6 6-6 6 6"/>', down:'<path d="M12 4v16m-6-6 6 6 6-6"/>'
   }[name] || ''}</svg>`;
   const tabs = ['results','works'], months = M.months(data), dialog = $('detail-dialog');
+  const imageDialog = $('image-dialog'), evidenceImage = $('evidence-image');
   const hasWorkDetails = month => month >= '2026-10';
   const state = {month:M.defaultMonth(data),tab:'results',detail:null,filters:{search:'',direction:'',trend:'all',cohort:'all'},limit:25,engine:'yandex'};
   let view = null, report = null, positionColumns = null, renderedMonth = null, currentDetail = null, lastOpener = null;
-  const linkHTML = item => M.safeHref(item.url) ? `<a href="${esc(M.safeHref(item.url))}" target="_blank" rel="noopener noreferrer">${esc(item.label || item.url)}${icon('external')}</a>` : esc(item.label || 'Ссылка недоступна');
+  let imageOpener = null, pressedBackdrop = false;
+  const imageTrigger = title => ` data-image-title="${esc(title)}" aria-haspopup="dialog" aria-controls="image-dialog"`;
+  function linkHTML(item) {
+    const href = M.safeHref(item.url);
+    if (!href) return esc(item.label || 'Ссылка недоступна');
+    const label = item.label || item.url;
+    const preview = M.safeImageHref(href) ? imageTrigger(label) : '';
+    return `<a href="${esc(href)}" target="_blank" rel="noopener noreferrer"${preview}>${esc(label)}${icon(preview ? 'zoom' : 'external')}</a>`;
+  }
   function readRoute() {
     const url = new URL(location.href), month = url.searchParams.get('month'), tab = url.hash.slice(1);
     return {month:months.includes(month) ? month : M.defaultMonth(data), tab:tabs.includes(tab) ? tab : 'results', detail:url.searchParams.get('work')};
@@ -185,7 +195,7 @@
     let body = '';
     const hasImages = item.type === 'comparison' && M.safeImageHref(item.beforeImage) && M.safeImageHref(item.afterImage);
     if (item.type === 'comparison') {
-      const sideHTML = (side,label) => `<div><h4>${label}</h4>${item[side] ? `<p>${esc(item[side])}</p>` : ''}${hasImages ? `<figure class="comparison-screenshot"><a href="${esc(item[side + 'Image'])}" target="_blank" rel="noopener noreferrer" aria-label="${label}: открыть снимок в полном размере"><img src="${esc(item[side + 'Image'])}" alt="${esc(item[side + 'Alt'])}" loading="lazy" decoding="async"></a><figcaption>Нажмите на снимок, чтобы открыть его в полном размере.</figcaption></figure>` : ''}</div>`;
+      const sideHTML = (side,label) => `<div><h4>${label}</h4>${item[side] ? `<p>${esc(item[side])}</p>` : ''}${hasImages ? `<figure class="comparison-screenshot"><a href="${esc(item[side + 'Image'])}" target="_blank" rel="noopener noreferrer"${imageTrigger(label)} aria-label="Увеличить снимок «${label}»"><img src="${esc(item[side + 'Image'])}" alt="${esc(item[side + 'Alt'])}" loading="lazy" decoding="async"></a><figcaption>Нажмите на снимок, чтобы увеличить его.</figcaption></figure>` : ''}</div>`;
       body = `<div class="comparison-grid${hasImages ? ' has-images' : ''}">${sideHTML('before','Было')}${sideHTML('after','Стало')}</div>`;
     }
     if (item.type === 'table') body = tableHTML(item);
@@ -197,11 +207,12 @@
   function renderDetail() {
     const work = state.tab === 'works' && hasWorkDetails(state.month) && report.works.find(w => w.id === state.detail);
     const key = work ? `${state.month}:${work.id}` : null;
+    if (key && key === currentDetail && dialog.open) return;
+    if (imageDialog?.open) imageDialog.close();
     if (!work) {
       if (dialog.open) { dialog.close(); document.body.classList.remove('dialog-open'); (lastOpener?.isConnected ? lastOpener : $('tab-' + state.tab)).focus({preventScroll:true}); }
       currentDetail = null; return;
     }
-    if (key === currentDetail && dialog.open) return;
     dialog.dataset.reportView = 'works'; $('detail-title').textContent = work.title; $('detail-meta').hidden = true;
     const sections = (work.sections || []).map(sectionHTML).join('');
     $('detail-body').innerHTML = `<section class="actual-result"><h3>Что сделали</h3>${detailParagraphsHTML(work.result)}${work.resultBullets?.length ? `<ul class="result-bullets">${work.resultBullets.map(b => `<li>${strongHTML(b)}</li>`).join('')}</ul>` : ''}${sections}${(work.evidence || []).map(evidenceHTML).join('')}</section>`;
@@ -241,6 +252,32 @@
     else if (event.target.id === 'trend-filter') state.filters.trend = event.target.value;
     else if (event.target.id === 'cohort-filter') state.filters.cohort = event.target.value; else return;
     state.limit = 25; renderQueries();
+  });
+  $('detail-body').addEventListener('click',event => {
+    if (event.defaultPrevented || event.button !== 0 || event.ctrlKey || event.metaKey || event.shiftKey || event.altKey) return;
+    const link = event.target.closest('a[data-image-title]');
+    if (!link || typeof imageDialog?.showModal !== 'function') return;
+    const href = M.safeImageHref(link.getAttribute('href'));
+    if (!href) return;
+    event.preventDefault();
+    imageOpener = link;
+    $('image-title').textContent = link.dataset.imageTitle;
+    evidenceImage.alt = link.querySelector('img')?.alt || link.dataset.imageTitle;
+    evidenceImage.src = href;
+    imageDialog.showModal();
+  });
+  $('close-image')?.addEventListener('click',() => imageDialog.close());
+  imageDialog?.addEventListener('pointerdown',event => { pressedBackdrop = event.target === imageDialog; });
+  imageDialog?.addEventListener('click',event => {
+    if (pressedBackdrop && event.target === imageDialog) imageDialog.close();
+    pressedBackdrop = false;
+  });
+  imageDialog?.addEventListener('close',() => {
+    if (imageDialog.open) return;
+    evidenceImage.removeAttribute('src');
+    if (dialog.open && imageOpener?.isConnected) imageOpener.focus({preventScroll:true});
+    imageOpener = null;
+    pressedBackdrop = false;
   });
   $('close-detail').addEventListener('click',() => navigate({detail:null}));
   dialog.addEventListener('cancel',event => { event.preventDefault(); navigate({detail:null}); });
